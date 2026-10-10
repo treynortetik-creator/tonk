@@ -5,8 +5,8 @@
 
 import type { Pellet, PokeTier, StateId } from './core.ts'
 import {
-  Grid, H, HEAD_POS, JIGGLE_FRAMES, PALETTE as PALETTE_REF, PILE, SHOULDER_L, UPRIGHT_CAN, UPRIGHT_X, UPRIGHT_Y, W,
-  arm, bandana, burpPuff, can, drawBody, drip, head, jiggleTicks, pellet, pile, sweat, zed,
+  Grid, H, HEAD_POS, HEAD_X, JIGGLE_FRAMES, PALETTE as PALETTE_REF, PILE, SHOULDER_L, UPRIGHT_CAN, UPRIGHT_X, UPRIGHT_Y, W,
+  arm, burpPuff, can, drawBody, drip, head, incoming, jiggleTicks, pellet, pile, rainOnPile, sweat, zed,
   type Brow, type Eyes, type Mouth,
 } from './sprites/base.ts'
 import { INTRO_FRAMES, drawIntro } from './sprites/intro.ts'
@@ -43,7 +43,8 @@ export type Extras = {
   shimmer?: number
 }
 
-export const CAN_MOUTH: Pellet = { x: 10, y: 14 }
+/** Top-left of a pellet leaving the can's glowing mouth (streams start here). */
+export const CAN_MOUTH: Pellet = { x: 9, y: 13 }
 /** Frames that hold nothing in the paws: the ones eating overlays sit on. */
 export const EAT_FRAME: Record<StateId, number> = { asleep: 0, skinny: 0, snacking: 2, round: 2, huge: 6, bloated: 0, coma: 0, workout: 0 }
 export const FRAME_COUNT: Record<StateId, number> = { asleep: 2, skinny: 3, snacking: 4, round: 3, huge: 8, bloated: 4, coma: 4, workout: 2 }
@@ -75,18 +76,18 @@ export const POKE_FRAMES: Record<PokeTier, number> = {
 type PokePose = { paw: Pellet; tip: Pellet; can?: [number, number]; bang?: 0 | 1 | 2; motion?: boolean }
 const POKE_POSES: Record<PokeTier, PokePose[]> = {
   bored: [
-    { paw: { x: 18, y: 14 }, tip: { x: 9, y: 15 } },
-    { paw: { x: 19, y: 15 }, tip: { x: 11, y: 17 } },
+    { paw: { x: 18, y: 14 }, tip: { x: 10, y: 14 } },
+    { paw: { x: 18, y: 15 }, tip: { x: 11, y: 17 } },
   ],
   frantic: [
-    { paw: { x: 16, y: 13 }, tip: { x: 7, y: 14 }, motion: true, can: [-1, 0] },
-    { paw: { x: 19, y: 12 }, tip: { x: 12, y: 11 } },
-    { paw: { x: 17, y: 14 }, tip: { x: 8, y: 16 }, motion: true },
+    { paw: { x: 17, y: 13 }, tip: { x: 8, y: 14 }, motion: true, can: [-1, 0] },
+    { paw: { x: 19, y: 12 }, tip: { x: 12, y: 10 } },
+    { paw: { x: 17, y: 14 }, tip: { x: 9, y: 16 }, motion: true },
   ],
   bang: [
-    { paw: { x: 17, y: 6 }, tip: { x: 11, y: 0 } },
+    { paw: { x: 17, y: 5 }, tip: { x: 11, y: 0 } },
     { paw: { x: 16, y: 10 }, tip: { x: 4, y: 9 }, can: [0, 1], bang: 1 },
-    { paw: { x: 17, y: 7 }, tip: { x: 9, y: 3 }, can: [-1, 0], bang: 2 },
+    { paw: { x: 17, y: 6 }, tip: { x: 9, y: 2 }, can: [-1, 0], bang: 2 },
   ],
 }
 const POKE_FACE: Record<PokeTier, { eyes: Eyes; mouth: Mouth; brow?: Brow }> = {
@@ -104,7 +105,7 @@ function bangPop(g: Grid, level: 1 | 2) {
 
 function pokePaw(state: StateId, pose: PokePose) {
   const sh = SHOULDER_L[state]
-  const paw = { x: Math.min(pose.paw.x, sh.x - 2), y: pose.paw.y }
+  const paw = { x: Math.min(pose.paw.x, sh.x - 3), y: pose.paw.y }
   // keep the stick at least 6 px long when a fat body pushes the paw left
   const tip = { x: Math.min(pose.tip.x, paw.x - 6), y: pose.tip.y }
   return { sh, paw, tip }
@@ -114,7 +115,6 @@ function pokeArm(g: Grid, state: StateId, pose: PokePose) {
   const { sh, paw, tip } = pokePaw(state, pose)
   g.line(paw.x + 1, paw.y, tip.x, tip.y, 1, 'n')
   g.line(Math.round((paw.x * 2 + tip.x) / 3), Math.round((paw.y * 2 + tip.y) / 3), Math.round((paw.x + tip.x * 2) / 3), Math.round((paw.y + tip.y * 2) / 3), 1, 'b')
-  // outlined arm so the paw on the stick reads in front of the belly
   arm(g, state, sh, { x: paw.x, y: paw.y - 1 })
   g.rect(paw.x, paw.y - 1, paw.x + 1, paw.y, 'd')
 }
@@ -128,12 +128,13 @@ function pokeFrame(g: Grid, state: StateId, tier: PokeTier, pose: PokePose, ex: 
   const face = POKE_FACE[tier]
   const [cdx, cdy] = pose.can ?? [0, 0]
   can(g, { dx: cdx, dy: cdy, lid: true })
-  // the lid rattles on the slam
-  drawBody(g, state, { arms: 'right', pose: state === 'snacking' || state === 'round' ? 2 : 0, tail: ex.tail ?? (tier === 'bored' ? 0 : 2), ear: ex.ear })
+  const eyes: Eyes = ex.blink ? 'closed' : face.eyes
+  const o = { arms: 'right' as const, tail: ex.tail ?? (tier === 'bored' ? 0 : 2), ear: ex.ear, eyes, mouth: face.mouth, brow: ex.blink ? undefined : face.brow }
+  drawBody(g, state, o)
   pokeArm(g, state, pose)
   // the face goes on last so the stick arm never covers it
   const hp = HEAD_POS[state]
-  head(g, hp.x, hp.y, ex.blink ? 'closed' : face.eyes, face.mouth, { brow: face.brow, ear: ex.ear })
+  head(g, hp.x, hp.y, eyes, face.mouth, { brow: o.brow, ear: ex.ear })
 }
 
 // ---- frames ------------------------------------------------------------
@@ -142,35 +143,26 @@ function idleBody(g: Grid, state: StateId, f: number, ex: Extras) {
   const micro = { blink: ex.blink, ear: ex.ear, tail: ex.tail, jiggle: ex.jiggle }
   switch (state) {
     case 'asleep':
-      drawBody(g, 'asleep', { ...micro, blink: false })
-      if (f === 0) zed(g, 28, 2, false)
-      else {
-        zed(g, 28, 1, false)
-        zed(g, 32, 0, true)
-      }
+      drawBody(g, 'asleep', { ...micro, blink: false, mouth: f ? 'chew1' : 'flat' })
       break
     case 'skinny':
-      drawBody(g, 'skinny', { ...micro, pose: f === 1 ? 1 : 0, headDx: f === 2 ? -1 : 0, tail: ex.tail ?? (f === 1 ? 2 : 0), mouth: ex.mouth })
-      break
-    case 'huge':
-      drawBody(g, 'huge', { ...micro, pose: 0 })
+      drawBody(g, 'skinny', { ...micro, pose: f, headDx: f === 2 ? -1 : 0, tail: ex.tail ?? (f === 1 ? 2 : 0) })
       break
     case 'workout':
       drawBody(g, 'workout', { pose: f })
-      sweat(g, f === 1 ? 38 : 36, f === 1 ? 4 : 3)
       break
     default:
       drawBody(g, state, { ...micro, pose: f })
   }
 }
 
-function overrideMouth(g: Grid, state: StateId, mouth: Mouth, ex: Extras) {
-  const hp = HEAD_POS[state]
-  // redraw the head with the eating mouth (keeps the blink / ear layers)
-  const eyes: Eyes = ex.blink ? 'closed' : state === 'huge' || state === 'bloated' ? 'lidded' : state === 'skinny' ? 'wide' : 'happy'
-  const drop = ex.jiggle === 0 ? 1 : 0
-  head(g, hp.x, hp.y + drop, eyes, mouth, { ear: ex.ear, brow: state === 'skinny' && !ex.blink ? 'hungry' : undefined })
-  void bandana
+/** Eating: both paws up at the mouth, the eating mouth, the state's own eyes. */
+function eatBody(g: Grid, state: StateId, f: number, mouth: Mouth, ex: Extras) {
+  const eyes: Eyes = state === 'huge' || state === 'bloated' ? 'lidded' : state === 'skinny' ? 'wide' : 'happy'
+  drawBody(g, state, {
+    pose: f, arms: 'hold', mouth, eyes, brow: state === 'skinny' ? 'hungry' : undefined,
+    blink: ex.blink, ear: ex.ear, tail: ex.tail, jiggle: ex.jiggle,
+  })
 }
 
 /** Build one frame of a state as rows of palette chars (W x H). */
@@ -190,10 +182,10 @@ export function buildFrame(state: StateId, frame: number, extras: Extras = {}): 
     g.outline()
     if (pose.motion) {
       const { paw } = pokePaw(state, pose)
-      for (const [x, y] of [[3, -2], [4, -2], [5, -2], [3, 2], [4, 2]] as Array<[number, number]>) g.set(paw.x + x, paw.y + y, 'c')
+      for (const [x, y] of [[-3, -2], [-4, -2], [-5, -2], [-3, 2], [-4, 2]] as Array<[number, number]>) g.set(paw.x + x, paw.y + y, 'c')
     }
     if (pose.bang) bangPop(g, pose.bang)
-    if (pose.bang === 2) pellet(g, 12, 6, 'w')
+    if (pose.bang === 2) pellet(g, 12, 8, 'w')
     if (pose.bang === 1) for (const [x, y] of [[0, 7], [1, 6], [9, 7], [10, 6]] as Array<[number, number]>) g.set(x, y, 'c')
     return g.rows()
   }
@@ -201,14 +193,29 @@ export function buildFrame(state: StateId, frame: number, extras: Extras = {}): 
   can(g, { drained })
   // the pile sits behind Tonk so his silhouette stays clean
   pile(g, extras.pileOverride ?? PILE[state], extras.shimmer ?? f)
-  idleBody(g, state, f, extras)
   const eatMouth = extras.mouth
-  if (eatMouth && !['skinny', 'asleep', 'coma', 'workout'].includes(state)) overrideMouth(g, state, eatMouth, extras)
+  const eating = !!eatMouth && state !== 'asleep' && state !== 'coma' && state !== 'workout'
+  if (eating) eatBody(g, state, f, eatMouth, extras)
+  else idleBody(g, state, f, extras)
   g.outline()
-  if (state === 'bloated' && (f === 2 || f === 3)) burpPuff(g, f)
+  if (state === 'bloated' && (f === 2 || f === 3) && !eating) burpPuff(g, f)
+  if (state === 'bloated') sweat(g, HEAD_X - 2, 4 + (f % 2)), sweat(g, HEAD_X + 18, 6 - (f % 2))
   if (state === 'huge') drip(g, f)
+  if (state === 'workout') sweat(g, HEAD_X + 18, f === 1 ? 2 : 4)
+  if (state === 'asleep') {
+    if (f === 0) zed(g, 38, 3, false)
+    else zed(g, 38, 2, false), zed(g, 40, 0, false)
+  }
+  if (state === 'coma') {
+    const Z: Array<[number, number, boolean]> = [[38, 3, false], [40, 0, true], [35, 0, false]]
+    Z.slice(0, f === 3 ? 3 : f + 1).forEach(([x, y, big]) => zed(g, x, y, big))
+  }
   if (extras.jiggle !== undefined) jiggleTicks(g, state, extras.jiggle)
-  for (const p of extras.pellets ?? []) pellet(g, p.x, p.y, 'w')
+  const pellets = extras.pellets ?? []
+  if (pellets.length) {
+    if (state === 'asleep' || state === 'coma') rainOnPile(g, pellets)
+    else incoming(g, state, CAN_MOUTH, pellets)
+  }
   return g.rows()
 }
 
@@ -234,27 +241,29 @@ export function buildEventFrame(state: StateId, event: EventName, frame: number)
 }
 
 // ---- the Spinner chomper (30 x 6) -------------------------------------
-// Head only, front view: ears, the charcoal mask with bead eyes, the nose pad,
-// and a mouth that snaps open (red-brown inside) as each pellet arrives; shut, it is
-// the smirk with the one snaggle tooth and happy closed eyes.
+// Head only, front view, 13 wide: ears, white brows, the dark mask band with
+// two glinting eyes, a light muzzle with the black nose, and a mouth that
+// snaps open (red-brown inside) as each pellet arrives. Pellets hop out of a
+// can stub and slide in level with the mouth, never across the eyes.
 
-const CHOMP_OPEN = [
-  '.gg.....gg.',
-  'ggwwgdgwwgg',
-  'mkWmhdhmkWm',
-  'hmmlNNNlmmh',
-  '.hlkkkkklh.',
-  '..hkWjjkh..',
-]
 const CHOMP_SHUT = [
-  '.gg.....gg.',
-  'ggwwgdgwwgg',
-  'mkkmhdhmkkm',
-  'hmmlNNNlmmh',
-  '.hllklkklh.',
-  '..hhWhhhh..',
+  '.gd.......dg.',
+  'ggwwgggggwwgg',
+  'mmWkmmhmmWkmm',
+  'hmmmwNNNwmmmh',
+  '.hhwkwwwkwhh.',
+  '..hhwkkkwhh..',
 ]
-export const CHOMP_MOUTH: Pellet = { x: 23, y: 5 }
+const CHOMP_OPEN = [
+  '.gd.......dg.',
+  'ggwwgggggwwgg',
+  'mmWkmmhmmWkmm',
+  'hmmmwNNNwmmmh',
+  '.hhwkjjjkwhh.',
+  '..hhkjjjkhh..',
+]
+const CHOMP_HX = 15
+export const CHOMP_MOUTH: Pellet = { x: CHOMP_HX + 7, y: 5 }
 export const CHOMP_CAN: Pellet = { x: 4, y: 1 }
 
 export function buildChomp(open: boolean, pellets: Pellet[]): string[] {
@@ -262,17 +271,22 @@ export function buildChomp(open: boolean, pellets: Pellet[]): string[] {
   // a can stub at the far left: the pellets' source
   g.stamp(0, 0, ['ttq.', 'tTqO', 'tTqy', 'tTqO', 'tTqO', 'TTq.'])
   // ringed tail flicking up behind the head
-  g.stamp(29, 1, ['m', 'd', 'h', 'd'])
-  g.stamp(28, 4, ['hh'])
-  g.stamp(18, 0, open ? CHOMP_OPEN : CHOMP_SHUT)
-  g.set(19 + 9, 5, 'r')
-  g.set(18 + 1, 5, 'r')
+  g.stamp(CHOMP_HX + 13, 1, ['.m', 'gg', 'mm', 'g.'])
+  g.stamp(CHOMP_HX, 0, open ? CHOMP_OPEN : CHOMP_SHUT)
   g.outline()
+  const x0 = CHOMP_CAN.x
+  const x1 = CHOMP_MOUTH.x - 1
+  const level = CHOMP_HX - 3
   for (const p of pellets) {
-    g.set(p.x, p.y, 'y')
-    g.set(p.x + 1, p.y, 'o')
-    g.set(p.x, p.y + 1, 'o')
-    g.set(p.x + 1, p.y + 1, 'O')
+    // progress from x (the stream is linear in x), redrawn on our own path
+    const u = Math.max(0, Math.min(1, (p.x - x0) / (x1 - x0)))
+    const x = Math.round(x0 + (x1 - x0) * u)
+    const s = Math.min(1, (x - x0) / (level - x0))
+    const y = x >= level ? CHOMP_MOUTH.y - 1 : Math.round(2 + (CHOMP_MOUTH.y - 3) * s - 2 * Math.sin(Math.PI * s))
+    g.set(x, y, 'y')
+    g.set(x + 1, y, 'o')
+    g.set(x, y + 1, 'o')
+    g.set(x + 1, y + 1, 'O')
   }
   return g.rows()
 }

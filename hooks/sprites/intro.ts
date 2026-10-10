@@ -6,7 +6,7 @@
 import type { Pellet, StateId } from '../core.ts'
 import {
   CAN_X, CAN_Y, Grid, H, HEAD_POS, LID, W, LID_EDGE, LID_TILT, LID_TILT_R, PILE, SHOULDER_L, SLOTS, UPRIGHT_CAN, UPRIGHT_X, UPRIGHT_Y,
-  arm, bang, can, drawBody, pellet, type Brow, type Eyes, type Mouth,
+  bang, bentArm, can, drawBody, pellet, type Brow, type Eyes, type Mouth,
 } from './base.ts'
 
 export const INTRO_FRAMES = 12
@@ -31,16 +31,16 @@ type IntroPose = {
 }
 
 const POSES: IntroPose[] = [
-  { dx: 8, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', spill: -1, surprise: true },
-  { dx: 5, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', tail: 1, spill: -1 },
-  { dx: 2, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', tail: 2, spill: -1 },
-  { dx: 0, can: { angle: 0, lid: true }, lid: null, reach: true, eyes: 'lidded', mouth: 'grin', brow: 'annoyed', spill: -1 },
-  { dx: 0, can: { angle: 8, lid: true }, lid: null, reach: true, eyes: 'lidded', mouth: 'grin', brow: 'annoyed', ear: true, spill: -1 },
-  { dx: 0, can: { angle: 32, lid: true }, lid: null, reach: true, eyes: 'wide', mouth: 'grit', brow: 'annoyed', spill: -1, motion: true },
-  { dx: 0, can: { angle: 64, lid: false }, lid: { art: LID_TILT, x: 9, y: 1 }, reach: true, eyes: 'wide', mouth: 'open', spill: -1, motion: true },
-  { dx: 0, can: 'tipped', lid: { art: LID_EDGE, x: 5, y: 1 }, reach: false, eyes: 'wide', mouth: 'open', brow: 'raised', spill: 0.12, dust: true },
-  { dx: 0, can: 'tipped', lid: { art: LID_TILT_R, x: 1, y: 5 }, reach: false, eyes: 'wide', mouth: 'open', brow: 'raised', spill: 0.4, clang: true },
-  { dx: 0, can: 'tipped', lid: 'rest', reach: false, eyes: 'happy', mouth: 'open', spill: 0.72 },
+  { dx: 10, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', spill: -1, surprise: true },
+  { dx: 4, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', tail: 1, spill: -1 },
+  { dx: -2, can: { angle: 0, lid: true }, lid: null, reach: false, eyes: 'wide', mouth: 'grin', brow: 'hungry', tail: 2, spill: -1 },
+  { dx: -5, can: { angle: 0, lid: true }, lid: null, reach: true, eyes: 'lidded', mouth: 'grin', brow: 'annoyed', spill: -1 },
+  { dx: -5, can: { angle: 8, lid: true }, lid: null, reach: true, eyes: 'lidded', mouth: 'grin', brow: 'annoyed', ear: true, spill: -1 },
+  { dx: -5, can: { angle: 32, lid: true }, lid: null, reach: true, eyes: 'wide', mouth: 'grit', brow: 'annoyed', spill: -1, motion: true },
+  { dx: -5, can: { angle: 64, lid: false }, lid: { art: LID_TILT, x: 9, y: 1 }, reach: true, eyes: 'wide', mouth: 'open', spill: -1, motion: true },
+  { dx: -4, can: 'tipped', lid: { art: LID_EDGE, x: 5, y: 1 }, reach: false, eyes: 'wide', mouth: 'open', brow: 'raised', spill: 0.12, dust: true },
+  { dx: -2, can: 'tipped', lid: { art: LID_TILT_R, x: 1, y: 5 }, reach: false, eyes: 'wide', mouth: 'open', brow: 'raised', spill: 0.4, clang: true },
+  { dx: -1, can: 'tipped', lid: 'rest', reach: false, eyes: 'happy', mouth: 'open', spill: 0.72 },
   { dx: 0, can: 'tipped', lid: 'rest', reach: false, eyes: 'happy', mouth: 'grin', tail: 2, spill: 1 },
   { dx: 0, can: 'tipped', lid: 'rest', reach: false, eyes: 'happy', mouth: 'grin', spill: 1 },
 ]
@@ -160,7 +160,7 @@ export function drawIntro(g: Grid, state: StateId, frame: number, drained: boole
   if (P.lid && P.lid !== 'rest') g.stamp(P.lid.x, P.lid.y, P.lid.art)
   const n = drained ? 0 : PILE[state]
   if (P.spill >= 0) spill(g, n, P.spill, true)
-  const body = state === 'asleep' || state === 'coma' || state === 'workout' ? (state === 'coma' ? 'bloated' : 'skinny') : state
+  const body = state === 'coma' ? 'bloated' : state === 'workout' ? 'skinny' : state
   const sleepy = state === 'asleep'
   drawBody(g, body, {
     dx: P.dx,
@@ -174,7 +174,9 @@ export function drawIntro(g: Grid, state: StateId, frame: number, drained: boole
   })
   if (P.reach && rimPaw) {
     const sh = SHOULDER_L[body]
-    arm(g, body, sh, { x: rimPaw.x, y: rimPaw.y })
+    // hooked over the rim: elbow up, paw down onto the lip
+    const from = { x: sh.x + P.dx, y: sh.y }
+    bentArm(g, body, from, { x: Math.round((from.x + rimPaw.x) / 2) + 1, y: Math.min(sh.y, rimPaw.y) - 2 }, { x: rimPaw.x, y: rimPaw.y })
   }
   return {
     post: (gg: Grid) => {
@@ -187,7 +189,7 @@ export function drawIntro(g: Grid, state: StateId, frame: number, drained: boole
         for (const [x, y] of [[9, 6], [10, 5], [9, 8], [10, 9]] as Array<[number, number]>) gg.set(x, y, 'c')
       }
       if (P.motion) for (const [x, y] of [[11, 4], [12, 5], [13, 7], [12, 9]] as Array<[number, number]>) gg.set(x, y, 'c')
-      if (P.surprise && !sleepy) bang(gg, Math.min(W - 2, HEAD_POS[body].x + P.dx + 13), 1)
+      if (P.surprise && !sleepy) bang(gg, HEAD_POS[body].x + P.dx - 3, 2)
       void CAN_Y
       void LID
     },

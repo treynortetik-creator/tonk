@@ -172,6 +172,21 @@ No export names or shapes changed; render.ts and core.ts untouched; no ART REQUE
 
 `claude plugin test .` 79/79 and `tsc -p .` clean at this commit.
 
+### ART PASS 5: front-facing chibi redesign (art agent, 2026-10-10)
+
+From `design/proto.py`. No export names or shapes changed; render.ts and core.ts untouched. Changed values:
+
+| What | Detail |
+|---|---|
+| Character | Front-facing sitting raccoon: 16 x 12 head (outline baked in), body ellipse whose width is the meter (rx 4 / 5.5 / 7 / 9 / 11.5), ringed tail behind the right hip. Skinny keeps the normal head and ears and sits 1 px lower (a slight hunch) on the thin body; huge wears the belt; bloated has the popped belt and sweat; coma is slumped with closed eyes and tongue out beside the drained can |
+| `PALETTE` | `m` 2c2629, `g` 9a9184, `h` c9bfae, `w` f2ece0, `W` ffffff, `N` 1a1416, `p` e0868a. Dropped `e` and `l`. `k` joined `NO_OUTLINE` (baked outlines never double) |
+| `HEAD_X` 21, `HEAD_W` 16 | `HEAD_POS` y: skinny/workout 1, asleep 2, coma 3, the rest 0 |
+| `MOUTH` | head x + 8, head y + 12: the pellet's centre held in both paws just under the lips |
+| `CAN_MOUTH` | {9, 13} (was {10, 14}) |
+| Eating pellets | `buildFrame` redraws every stream/burst pellet on its own path (hop out of the can, level slide into the paws at mouth height); progress = distance to the mouth, so render.ts timing is unchanged. Nothing crosses the face above the nose row (checked over 1290 eating frames). Asleep/coma bursts rain onto the pile |
+| Chomper | 13-wide head: ears, brows, mask with glints, nose, mouth that opens red; pellets slide in level with the mouth. `CHOMP_MOUTH` {22, 5} |
+| `scripts/preview.ts` | never deletes `tonk-live-terminal.gif` / `live-spinner.png`; the hero title's N is 5 px wide and TONK has 2 px letter spacing |
+
 ### core.ts exports (dev owns, art reads)
 `StateId`, `pickState`, `findWindow`, `detectReset`, `makeCaption`, `compactLine`, `pelletsForTurn`, `pelletsForTokens`,
 `burstFrame` (pellet positions for a burst), `streamFrame` (live-eating arc), `TICK_MS` (125), `idleStep`.

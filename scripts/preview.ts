@@ -21,7 +21,9 @@ const out = join(root, 'previews')
 const tmp = join(out, '.tmp')
 mkdirSync(out, { recursive: true })
 mkdirSync(tmp, { recursive: true })
-for (const f of readdirSync(out)) if (f.endsWith('.png') || f.endsWith('.gif')) rmSync(join(out, f))
+// live captures from a real terminal are recorded by hand: never regenerate or delete them
+const KEEP = new Set(['tonk-live-terminal.gif', 'live-spinner.png'])
+for (const f of readdirSync(out)) if ((f.endsWith('.png') || f.endsWith('.gif')) && !KEEP.has(f)) rmSync(join(out, f))
 
 const BG = 0x20232a
 const SCALE = 12
@@ -233,7 +235,7 @@ gif('tonk-delight', EVENT_NAMES.flatMap(e => [...idleShow('round', 500), ...even
 const FONT5: Record<string, string[]> = {
   T: ['###', '.#.', '.#.', '.#.', '.#.'],
   O: ['###', '#.#', '#.#', '#.#', '###'],
-  N: ['#..#', '##.#', '#.##', '#..#', '#..#'],
+  N: ['#...#', '##..#', '#.#.#', '#..##', '#...#'],
   K: ['#.#', '#.#', '##.', '#.#', '#.#'],
   W: ['#...#', '#...#', '#.#.#', '#.#.#', '.#.#.'],
   E: ['###', '#..', '##.', '#..', '###'],
@@ -255,7 +257,7 @@ const FONT5: Record<string, string[]> = {
 function textW(s: string) {
   return [...s].reduce((a, ch) => a + (FONT5[ch]?.[0]!.length ?? 2) + 1, -1)
 }
-function text(px: string[][], x: number, y: number, s: string, c: string, shadow?: string) {
+function text(px: string[][], x: number, y: number, s: string, c: string, shadow?: string, gap = 1) {
   for (const ch of s) {
     const g = FONT5[ch] ?? FONT5[' ']!
     g.forEach((row, dy) => {
@@ -265,7 +267,7 @@ function text(px: string[][], x: number, y: number, s: string, c: string, shadow
           px[y + dy]![x + dx] = c
         }
     })
-    x += g[0]!.length + 1
+    x += g[0]!.length + gap
   }
 }
 const HW = 52
@@ -287,7 +289,7 @@ function framed(rows: string[], pct: number): string[] {
     px[22]![x] = on ? 'y' : 'T'
     px[23]![x] = on ? 'o' : '#'
   }
-  text(px, 4, 25, 'TONK', 'r', 'R')
+  text(px, 4, 25, 'TONK', 'r', 'R', 2)
   const label = `${Math.round(pct)}%`
   text(px, HW - 4 - textW(label), 25, label, 'w', '#')
   return px.map(r => r.join(''))

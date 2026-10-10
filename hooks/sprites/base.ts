@@ -1,7 +1,14 @@
-// Tonk's pixel-art kit: palette, the Grid canvas, the head, tails, props, and
+// Tonk's pixel-art kit: palette, the Grid canvas, the head, tail, props, and
 // every body. Frames are palette-indexed character grids (one char per pixel,
 // '.' clear). sprites.ts composes these into frames; intro.ts and events.ts
 // build the one-shot sequences on top.
+//
+// The character (art pass 5, from design/proto.py): a FRONT-FACING, sitting
+// chibi raccoon. A 16 x 12 head (big ears, white brows, a dark mask band with
+// 2 x 2 eyes = white glint + black pupil, a light muzzle, black nose, a smirk),
+// a round sitting body whose width IS the usage meter, a light belly, dark
+// paws and feet, a red neckerchief under the chin, and a ringed tail rising
+// behind his right side.
 
 import type { Pellet, StateId } from '../core.ts'
 
@@ -9,15 +16,16 @@ export const W = 44
 export const H = 20
 
 export const PALETTE: Record<string, number> = {
-  k: 0x0e0c0d, // outline
-  m: 0x3a3236, // bandit mask (charcoal, not black: black read as a skull)
-  g: 0x8c7f70, // fur
-  h: 0xb9ab98, // light fur / belly
-  d: 0x5d5348, // dark fur / paws / rings
-  w: 0xeee6d6, // cream
-  W: 0xfffaf0, // tooth / star white
-  e: 0xf3d247, // eye
-  p: 0xc0716a, // pink
+  k: 0x0e0c0d, // outline, pupils
+  m: 0x2c2629, // bandit mask, tail rings
+  g: 0x9a9184, // fur
+  h: 0xc9bfae, // light fur / belly / cheeks
+  d: 0x5d5348, // dark fur / paws / feet
+  w: 0xf2ece0, // muzzle / brows
+  W: 0xffffff, // eye glint / star white
+  N: 0x1a1416, // nose
+  p: 0xe0868a, // pink (tongue)
+  j: 0x6b2c2a, // open-mouth interior (dark red-brown, never black)
   r: 0xd02b2b, // bandana
   R: 0x8f1d1d, // bandana shade
   o: 0xff9d1c, // pellet
@@ -28,19 +36,20 @@ export const PALETTE: Record<string, number> = {
   q: 0xa3a9b4, // can rim / lid
   u: 0x8f4f2c, // rust
   n: 0x6a4220, // belt / stick
+  b: 0x9a6a3a, // stick highlight
   Y: 0xe8c23a, // buckle / "!" pop / gold
   s: 0x6ec6ff, // sweat / water
   a: 0xdff4ff, // sweat shine
   c: 0xe8e8ee, // burp puff / motion ticks
   Z: 0x9fb4ff, // zzz
-  b: 0x9a6a3a, // stick highlight
-  N: 0x2b2024, // nose pad
-  l: 0xd6c8b2, // muzzle (warm light fur: lighter than h, never stark white)
-  j: 0x6b2c2a, // open-mouth interior (dark red-brown, never black)
 }
 
-/** Chars that never get an auto outline (glows, puffs, water, effects). */
-export const NO_OUTLINE = new Set(['o', 'y', 'Z', 'c', 's', 'a', 'W'])
+/**
+ * Chars that never spawn an auto outline: glows, puffs, water, effects, and
+ * 'k' itself (the head and arms carry hand-placed outlines; letting them
+ * spawn more would double every edge).
+ */
+export const NO_OUTLINE = new Set(['o', 'y', 'Z', 'c', 's', 'a', 'W', 'k'])
 
 export class Grid {
   w: number
@@ -67,8 +76,8 @@ export class Grid {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) this.set(x, y, c)
   }
   ellipse(cx: number, cy: number, rx: number, ry: number, c: string) {
-    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
-      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+    for (let y = Math.floor(cy - ry) - 1; y <= Math.ceil(cy + ry) + 1; y++)
+      for (let x = Math.floor(cx - rx) - 1; x <= Math.ceil(cx + rx) + 1; x++) {
         const dx = (x - cx) / rx
         const dy = (y - cy) / ry
         if (dx * dx + dy * dy <= 1) this.set(x, y, c)
@@ -107,67 +116,74 @@ export class Grid {
   }
 }
 
-// ---- the head (13 x 10, front view) -----------------------------------
-// Cute scrappy raccoon, not a skull: a charcoal mask band that tapers out to
-// the cheeks, bead eyes with a shine, cream brows, a light-fur muzzle (not
-// white), a small dark nose pad with a pink glint, fluffy cheek tufts, and a
-// CLOSED smirk with ONE snaggle tooth at the corner. The mouth only opens to
-// eat, gasp, sneeze or "bleh", and then it is red-brown inside, never black.
+// ---- the head (16 x 12, front view, outline baked in) ------------------
 
-export const HEAD_W = 13
+export const HEAD_W = 16
+export const HEAD_H = 12
 const HEAD = [
-  '.gg.......gg.',
-  'gdgggdddgggdg',
-  'ggwwwgdgwwwgg',
-  'gmmmmgdgmmmmg',
-  'mmkWmhdhmkWmm',
-  'gmkkmhlhmkkmg',
-  'hhgmlNNNlmghh',
-  'hhhlllklllhhh',
-  '.hhllkllkkhh.',
-  '..hhhWhhhhh..',
+  '.kk..........kk.',
+  'kgdk........kdgk',
+  'kgdgkkkkkkkkgdgk',
+  'kggggggggggggggk',
+  'kgwwwggggggwwwgk',
+  'kmmmmmmggmmmmmmk',
+  'kmmWkmmhhmmWkmmk',
+  'kmmkkmmhhmmkkmmk',
+  'kkmmmhwwwwhmmmkk',
+  'kkhhwwwNNwwwhhkk',
+  '..khhwwwwwwhhk..',
+  '...kkhwwwwhkk...',
 ]
 type Px = Array<[number, number, string]>
-/** Eye patches: [row4 left, row5 left, row4 right, row5 right] at cols 2-3 and 9-10. */
-const EYE_ART = {
-  normal: ['kW', 'kk', 'kW', 'kk'], // bead eyes with a shine
-  wide: ['ww', 'kw', 'ww', 'kw'], // hungry: whites showing, pupils down toward the can
-  closed: ['mm', 'kk', 'mm', 'kk'],
-  happy: ['kk', 'mm', 'kk', 'mm'],
-  lidded: ['gg', 'kW', 'gg', 'kW'],
-  annoyed: ['mm', 'wk', 'mm', 'kw'],
-  up: ['kW', 'mm', 'kW', 'mm'], // pupils rolled up: peering at the prompt
-  sparkle: ['WY', 'YW', 'YW', 'WY'], // star-struck
-  left: ['kw', 'kw', 'kw', 'kw'],
-  right: ['wk', 'wk', 'wk', 'wk'],
-  dizzy: ['Wm', 'mW', 'mW', 'Wm'],
-  squint: ['mm', 'kk', 'mm', 'kk'],
-} satisfies Record<string, [string, string, string, string]>
-/** Brow overrides (rows 2-3). */
-const BROWS = {
-  hungry: [[2, 2, 'g'], [4, 3, 'w'], [10, 2, 'g'], [8, 3, 'w']],
-  annoyed: [[3, 2, 'g'], [4, 2, 'g'], [3, 3, 'w'], [4, 3, 'w'], [9, 2, 'g'], [8, 2, 'g'], [9, 3, 'w'], [8, 3, 'w']],
-  bored: [[2, 2, 'g'], [3, 2, 'g'], [4, 2, 'g'], [8, 2, 'g'], [9, 2, 'g'], [10, 2, 'g'], [2, 3, 'h'], [3, 3, 'h'], [9, 3, 'h'], [10, 3, 'h']],
-  raised: [[2, 1, 'w'], [3, 1, 'w'], [4, 1, 'w'], [8, 1, 'w'], [9, 1, 'w'], [10, 1, 'w'], [2, 2, 'g'], [3, 2, 'g'], [4, 2, 'g'], [8, 2, 'g'], [9, 2, 'g'], [10, 2, 'g']],
-} satisfies Record<string, Px>
+
 /**
- * Mouths replace rows 7-9 (the nose stays on row 6). Closed mouths are a
- * short smirk line that hooks up at the right corner, with the one snaggle
- * tooth 'W' poking down under the left end. Open mouths are 'j' inside.
+ * Eye patches, 4 px wide, starting at head row `r`: the left eye's patch
+ * covers head cols 2-5, the right one 10-13. '.' keeps the base pixel.
+ * The base eye is 2 x 2 at cols 3-4 / 11-12, rows 6-7: glint + pupil.
+ */
+type EyeArt = { r: number; L: string[]; R?: string[] }
+const EYE_ART = {
+  normal: { r: 6, L: ['mWkm', 'mkkm'] },
+  wide: { r: 6, L: ['mwwm', 'mkwm'] }, // hungry: whites, pupils down toward the can
+  closed: { r: 6, L: ['mmmm', 'hhhh'] },
+  happy: { r: 6, L: ['mhhm', 'hmmh'] }, // ^ ^
+  lidded: { r: 6, L: ['mggm', 'mWkm'] }, // heavy lids, full and sleepy
+  annoyed: { r: 6, L: ['mmmm', 'mWkm'], R: ['mmmm', 'mWkm'] },
+  up: { r: 6, L: ['mkkm', 'mwwm'] }, // pupils rolled up: peering at the prompt
+  sparkle: { r: 5, L: ['.Y..', 'YWYm', 'mYmm'] }, // star-struck
+  left: { r: 6, L: ['mkwm', 'mkwm'] },
+  right: { r: 6, L: ['mwkm', 'mwkm'] },
+  dizzy: { r: 5, L: ['w.w.', 'mwmm', 'wmwm'], R: ['.w.w', 'mmwm', 'mwmw'] }, // x x
+  squint: { r: 6, L: ['mwwm', 'mmmm'] }, // >< scrunched
+} satisfies Record<string, EyeArt>
+
+/** Brow overrides [x, y, c] on the left side; the right side is mirrored (x -> 15 - x). */
+const BROWS = {
+  hungry: [[2, 4, 'w'], [3, 4, 'w'], [4, 4, 'g'], [4, 3, 'w']], // worried: inner ends up
+  annoyed: [[2, 3, 'w'], [2, 4, 'g'], [3, 4, 'w'], [4, 4, 'w'], [5, 4, 'w'], [5, 5, 'w']], // inner ends down
+  bored: [[2, 4, 'g'], [3, 4, 'g'], [4, 4, 'g'], [2, 5, 'w'], [3, 5, 'w'], [4, 5, 'w']], // low, flat
+  raised: [[2, 3, 'w'], [3, 3, 'w'], [4, 3, 'w'], [2, 4, 'g'], [3, 4, 'g'], [4, 4, 'g']],
+} satisfies Record<string, Px>
+
+/**
+ * Mouths: rows 10, 11, 12 (and 13) of the head, 16 wide, '.' keeps the base.
+ * Row 12+ is the jaw dropping onto the neckerchief, so the head is drawn after
+ * the bandana and an open mouth always wins. Open mouths are red-brown 'j'.
+ * The mouth is centred on head col 8, just under the nose (cols 7-8).
  */
 const MOUTH_ART = {
-  grin: ['hhhlllkllkhhh', '.hhllklkklhh.', '..hhhWhhhhh..'],
-  chew0: ['hhhlllklllhhh', '.hhllkkkllhh.', '..hhhhWhhhh..'],
-  chew1: ['hhhlllklllhhh', '.hhlllkkllhh.', '..hhhhhWhhh..'],
-  open: ['hhhlkkkkklhhh', '.hhlkWjjklhh.', '..hhhkkkhhh..'],
-  burp: ['hhhllkkkllhhh', '.hhlkjjjklhh.', '..hhhkkkhhh..'],
-  tongue: ['hhhlkkkkklhhh', '.hhlkjppklhh.', '..hhhkppkhh..'],
-  flat: ['hhhlllklllhhh', '.hhlkkkkklhh.', '..hhhhhhWhh..'],
-  grit: ['hhhlllklllhhh', '.hhkkkkkkkhh.', '..hhhhhhWhh..'],
-  gasp: ['hhhllkkkllhhh', '.hhllkjkllhh.', '..hhhhkhhhh..'],
-  smile: ['hhhlklklklhhh', '.hhllkkkllhh.', '..hhhWhhhhh..'],
-  bleh: ['hhhlkkkkklhhh', '.hhlkjjjklhh.', '..hhhhppkhh..'],
-  sneeze: ['hhhlllklllhhh', '.hhlkkkkklhh.', '..hhhhhhhhh..'],
+  grin: ['......k...k.....', '.......kkk......'], // the smirk
+  chew0: ['..h....kk....h..'], // cheeks puffed
+  chew1: ['..h.....kk...h..', '.......k........'],
+  open: ['......kWjjk.....', '......kjjjk.....', '.......kkk......'],
+  burp: ['.......kjk......', '......kjjjk.....', '.......kkk......'],
+  tongue: ['......kkkkk.....', '.......kppk.....', '.......kppk.....', '........kk......'],
+  flat: ['......kkkkk.....'],
+  grit: ['.....kkkkkkk....', '.....kWkWkWk....', '......kkkkk.....'],
+  gasp: ['.......kjk......', '.......kkk......'],
+  smile: ['.....k....k.....', '......kkkk......'],
+  bleh: ['......kjjjk.....', '......kjppk.....', '.......kppk.....', '........kk......'],
+  sneeze: ['.....kkkkkkk....', '.....k.....k....'],
 } as const
 export type Eyes = keyof typeof EYE_ART
 export type Mouth = keyof typeof MOUTH_ART
@@ -179,112 +195,72 @@ export type HeadOpts = {
   ear?: boolean
   /** Lean the head: +1 tilts right (right side drops 1 px), -1 tilts left. */
   tilt?: -1 | 0 | 1
-  /** Lid helmet over the ears. */
+  /** The can lid worn as a bowler hat between the ears. */
   helmet?: boolean
-  /** Rows to drop (chin tucked) for nods and sneezes. */
-  squash?: number
+  /** Ears folded flat and out: sad, hungry. */
+  droop?: boolean
 }
 
 export function head(g: Grid, hx: number, hy: number, eyes: Eyes, mouth: Mouth, opts: HeadOpts = {}) {
   const rows = HEAD.map(r => r.split(''))
+  const extra: Px = []
   const put = (x: number, y: number, c: string) => {
-    rows[y]![x] = c
+    if (x >= 0 && x < HEAD_W && y >= 0 && y < HEAD_H) rows[y]![x] = c
+    else extra.push([x, y, c])
   }
-  const ea = EYE_ART[eyes]
-  put(2, 4, ea[0][0]!), put(3, 4, ea[0][1]!), put(2, 5, ea[1][0]!), put(3, 5, ea[1][1]!)
-  put(9, 4, ea[2][0]!), put(10, 4, ea[2][1]!), put(9, 5, ea[3][0]!), put(10, 5, ea[3][1]!)
-  if (opts.brow) for (const [x, y, c] of BROWS[opts.brow] as Px) put(x, y, c)
-  MOUTH_ART[mouth].forEach((row, i) => {
-    rows[7 + i] = row.split('')
-  })
-  if (opts.ear) put(10, 0, '.'), put(11, 0, '.')
-  rows.forEach((row, y) => {
-    row.forEach((c, x) => {
-      if (c === '.') return
-      const lean = opts.tilt ? (opts.tilt > 0 ? (x >= 7 ? 1 : 0) : x <= 5 ? 1 : 0) : 0
-      g.set(hx + x, hy + y + lean, c)
-    })
-  })
-  // cheek fluff: a tuft sticks out past each jaw so the face reads fuzzy, not bony
-  const lt = opts.tilt && opts.tilt < 0 ? 1 : 0
-  const rt = opts.tilt && opts.tilt > 0 ? 1 : 0
-  g.set(hx - 1, hy + 7 + lt, 'h')
-  g.set(hx + 13, hy + 7 + rt, 'h')
-  if (opts.ear) {
-    // right ear flicks: it perks up and out 2 px for one beat (reads at 1x)
-    for (const [x, y, c] of [[11, 0, 'g'], [11, -1, 'g'], [12, -1, 'd'], [12, 0, 'g'], [12, -2, 'g'], [13, -2, 'g'], [13, -1, 'g']] as Px) g.set(hx + x, hy + y + rt, c)
+  const ea: EyeArt = EYE_ART[eyes]
+  ea.L.forEach((row, i) => [...row].forEach((c, x) => c !== '.' && put(2 + x, ea.r + i, c)))
+  ;(ea.R ?? ea.L).forEach((row, i) => [...row].forEach((c, x) => c !== '.' && put(10 + x, ea.r + i, c)))
+  if (opts.brow) for (const [x, y, c] of BROWS[opts.brow] as Px) put(x, y, c), put(15 - x, y, c)
+  MOUTH_ART[mouth].forEach((row, i) => [...row].forEach((c, x) => c !== '.' && put(x, 10 + i, c)))
+  if (opts.ear && !opts.droop) {
+    // right ear flicks: the tip kicks out 1 px for a beat (reads at 1x)
+    for (const [x, y, c] of [[13, 0, '.'], [14, 0, 'k'], [15, 0, 'k'], [12, 1, 'k'], [13, 1, 'k'], [14, 1, 'd'], [15, 1, 'g'], [16, 1, 'k'], [16, 2, 'k']] as Px) put(x, y, c)
+    rows[0]![13] = '.'
   }
-  if (opts.helmet) helmet(g, hx, hy)
+  if (opts.droop) {
+    // ears folded flat and out to the sides
+    rows[0] = [...'................']
+    rows[1] = [...'................']
+    rows[2] = [...'.kkkkkkkkkkkkkk.']
+    rows[3]![0] = 'g'
+    rows[3]![15] = 'g'
+    for (const [x, y, c] of [[-1, 3, 'g'], [-1, 4, 'd'], [-2, 4, 'g'], [-2, 5, 'g'], [-3, 5, 'g'], [-3, 6, 'g']] as Px) extra.push([x, y, c], [15 - x, y, c])
+    // the ear flick on a drooped ear: the right one lifts for a beat
+    if (opts.ear) extra.push([16, 2, 'g'], [17, 2, 'g'], [18, 3, 'g'], [18, 6, '.'])
+  }
+  // cheek tufts: fluff sticks out past each jaw so the face reads fuzzy, not bony
+  for (const y of [8, 9]) extra.push([-1, y, 'h'], [16, y, 'h'])
+  const lean = (x: number) => (opts.tilt ? (opts.tilt > 0 ? (x >= 8 ? 1 : 0) : x <= 7 ? 1 : 0) : 0)
+  rows.forEach((row, y) => row.forEach((c, x) => c !== '.' && g.set(hx + x, hy + y + lean(x), c)))
+  for (const [x, y, c] of extra) if (c !== '.') g.set(hx + x, hy + y + lean(x), c)
+  if (opts.helmet) g.stamp(hx + 3, hy + lean(8), HELMET)
 }
 
-/** The can lid worn as a helmet: a dome over the ears with a brim and a handle knob. */
-const HELMET = [
-  '.....qq......',
-  '..qqqqqqqqq..',
-  '.qqqqqqqqqqT.',
-  'TqqqqqqqqqqqT',
-]
-function helmet(g: Grid, hx: number, hy: number) {
-  g.stamp(hx, hy - 1, HELMET)
-}
+/** The can lid worn as a bowler hat: knob, dome, brim, sitting between the ears. */
+const HELMET = ['....qT....', '.qqqqqqqq.', 'TqqqqqqqqT']
 
-/** Neckerchief: a band across the neck plus a triangle that hangs below. */
+/** Neckerchief: a band under the chin plus a triangle that hangs over the chest. */
 export function bandana(g: Grid, cx: number, y: number, w: number, drop: number) {
-  const x0 = cx - (w >> 1)
-  for (let x = 0; x < w; x++) g.set(x0 + x, y, x % 3 === 2 ? 'R' : 'r')
+  const x0 = Math.round(cx - w / 2)
+  for (let x = 0; x < w; x++) g.set(x0 + x, y, 'r')
   for (let i = 1; i <= drop; i++) {
-    const ww = Math.max(1, w - 2 - 2 * i)
-    const xs = cx - (ww >> 1)
-    for (let x = 0; x < ww; x++) g.set(xs + x, y + i, x === ww - 1 && ww > 2 ? 'R' : 'r')
+    const ww = Math.max(2, w - 4 - 2 * (i - 1) - (i > 1 ? 2 : 0))
+    const xs = Math.round(cx - ww / 2)
+    for (let x = 0; x < ww; x++) g.set(xs + x, y + i, x === ww - 1 ? 'R' : 'r')
   }
   // knot tails flicking out to the right
   g.set(x0 + w, y, 'r')
   g.set(x0 + w + 1, y - 1, 'R')
 }
 
-// ---- tail: ringed, bushy, dark tip -----------------------------------
+// ---- tail: ringed, 3 px thick, dark tip ---------------------------------
 
-const TAIL_THIN = [
-  '.........mm',
-  '........dmm',
-  '......hhd..',
-  '..ddhhdd...',
-  'hhddhh.....',
-]
-const TAIL_THIN_UP = [
-  '........mm.',
-  '.......mmm.',
-  '.......dd..',
-  '......hhd..',
-  '.....dhh...',
-  '..hhdd.....',
-  'hhdd.......',
-]
-const TAIL_MID = [
-  '...mm',
-  '..mmm',
-  '..hhh',
-  '.hhhh',
-  '.ddd.',
-  'dddd.',
-  'hhh..',
-  'hhh..',
-  'dd...',
-]
-const TAIL_BIG = [
-  '....mm.',
-  '...mmmm',
-  '...hhhh',
-  '..hhhhh',
-  '..dddd.',
-  '.ddddd.',
-  '.hhhh..',
-  'hhhhh..',
-  'dddd...',
-  'ddd....',
-]
-const TAIL_FLAT = ['.mhhddhh', 'mmhhddhh']
-export const TAILS = { TAIL_THIN, TAIL_THIN_UP, TAIL_MID, TAIL_BIG, TAIL_FLAT }
+/** Rises behind his right side: base bottom-left (hidden by the body), tip top-right. */
+const TAIL_UP = ['....mmm', '....ggg', '...mmm.', '...ggg.', '..mmm..', '..ggg..', '.mmm...', '.ggg...', 'mmm....']
+/** Lying flat on the floor (asleep, coma). */
+const TAIL_FLAT = ['.......mm', 'gggmmmggm', 'gggmmmgg.']
+export const TAILS = { TAIL_UP, TAIL_FLAT }
 
 /**
  * Stamp a tail. `swish` shears it: the base stays planted and the tip swings
@@ -292,7 +268,7 @@ export const TAILS = { TAIL_THIN, TAIL_THIN_UP, TAIL_MID, TAIL_BIG, TAIL_FLAT }
  */
 export function tail(g: Grid, x: number, y: number, art: readonly string[], swish: 0 | 1 | 2 = 0) {
   const n = art.length
-  const amp = swish === 1 ? -2 : swish === 2 ? 1 : 0
+  const amp = swish === 1 ? -2 : swish === 2 ? 2 : 0
   art.forEach((row, r) => {
     const k = n > 1 ? (n - 1 - r) / (n - 1) : 0
     const sx = Math.round(amp * k * k)
@@ -308,7 +284,7 @@ export function pellet(g: Grid, x: number, y: number, core: string = 'y') {
   g.set(x, y + 1, 'o')
   g.set(x + 2, y + 1, 'o')
   g.set(x + 1, y + 2, 'o')
-  g.set(x + 1, y + 1, core)
+  g.set(x + 1, y + 1, core === 'w' ? 'W' : core)
 }
 
 /** The golden pellet: bigger, gold, white-hot core. */
@@ -320,8 +296,9 @@ export function goldPellet(g: Grid, x: number, y: number) {
   g.set(x + 1, y + 3, 'y')
 }
 
+/** Floor slots, nearest the can first (the fattest bodies leave the least floor). */
 export const SLOTS: Array<[number, number]> = [
-  [10, 16], [13, 17], [16, 16], [19, 17], [12, 14], [14, 13], [17, 14], [8, 17], [20, 15],
+  [11, 17], [13, 14], [15, 17], [19, 17], [17, 14], [15, 11], [23, 17], [21, 14], [19, 11],
 ]
 export const PILE: Record<StateId, number> = { asleep: 0, skinny: 9, snacking: 7, round: 5, huge: 3, bloated: 2, coma: 1, workout: 6 }
 
@@ -433,63 +410,118 @@ export function query(g: Grid, x: number, y: number) {
   g.stamp(x, y, ['YYY', '..Y', '.YY', '.Y.', '...', '.Y.'])
 }
 
-/** Sole-out foot: dark paw with pink pads (like the reference). */
-const FOOT_L = ['.ddd.', 'dpdpd', 'dpppd', '.ddd.']
-const FOOT_S = ['.dd.', 'dppd', '.dd.']
+/** A front-facing foot: dark, toes forward. */
+const FOOT_L = ['.dd.', 'dddd']
+const FOOT_S = ['ddd']
 export function foot(g: Grid, x: number, y: number, big = true) {
   g.stamp(x, y, big ? FOOT_L : FOOT_S)
 }
 
 // ---- anchors (shared by idle, poke, intro and events) ------------------
 
+/** Head left edge; the body is centred under the head at CX. */
 export const HEAD_X = 21
+export const CX = HEAD_X + 7.5
 export const HEAD_POS: Record<StateId, Pellet> = {
-  asleep: { x: 15, y: 5 },
-  skinny: { x: 15, y: 5 },
-  snacking: { x: 21, y: 1 },
-  round: { x: 21, y: 1 },
-  huge: { x: 21, y: 1 },
-  bloated: { x: 21, y: 2 },
-  coma: { x: 30, y: 5 },
-  workout: { x: 21, y: 1 },
+  asleep: { x: HEAD_X, y: 2 },
+  skinny: { x: HEAD_X, y: 1 },
+  snacking: { x: HEAD_X, y: 0 },
+  round: { x: HEAD_X, y: 0 },
+  huge: { x: HEAD_X, y: 0 },
+  bloated: { x: HEAD_X, y: 0 },
+  coma: { x: HEAD_X, y: 3 },
+  workout: { x: HEAD_X, y: 1 },
 }
-/** Mouth centre per state (pellets are aimed here): head x + 6, head y + 8. */
+/**
+ * Where a pellet ends up (its centre): held in both paws at the mouth, the
+ * top of the pellet touching the lips. Head x + 8, head y + 12.
+ */
 export const MOUTH: Record<StateId, Pellet> = Object.fromEntries(
-  Object.entries(HEAD_POS).map(([s, p]) => [s, { x: p.x + 6, y: p.y + 8 }]),
+  Object.entries(HEAD_POS).map(([s, p]) => [s, { x: p.x + 8, y: p.y + 12 }]),
 ) as Record<StateId, Pellet>
-/** Free arms: where each shoulder starts, per body (L = screen-left, toward the can). */
-export const SHOULDER_L: Record<StateId, Pellet> = {
-  asleep: { x: 19, y: 15 },
-  skinny: { x: 19, y: 15 },
-  snacking: { x: 22, y: 11 },
-  round: { x: 20, y: 11 },
-  huge: { x: 17, y: 11 },
-  bloated: { x: 14, y: 11 },
-  coma: { x: 14, y: 8 },
-  workout: { x: 23, y: 12 },
-}
-export const SHOULDER_R: Record<StateId, Pellet> = {
-  asleep: { x: 24, y: 15 },
-  skinny: { x: 24, y: 15 },
-  snacking: { x: 32, y: 11 },
-  round: { x: 33, y: 12 },
-  huge: { x: 37, y: 11 },
-  bloated: { x: 40, y: 11 },
-  coma: { x: 26, y: 8 },
-  workout: { x: 31, y: 12 },
-}
 
-/** Arm from a shoulder to a paw (2 px fur, 1 px on skinny), with a dark 2x2 paw. */
-export function arm(g: Grid, state: StateId, from: Pellet, paw: Pellet, outlined = true) {
-  const thin = state === 'skinny' || state === 'asleep' || state === 'workout'
+/** Body radii per state: the belly width IS the meter. */
+type Spec = { rx: number; ry: number }
+export const BODY: Record<StateId, Spec> = {
+  asleep: { rx: 4, ry: 4.4 },
+  skinny: { rx: 4, ry: 4.4 },
+  snacking: { rx: 5.5, ry: 4.8 },
+  round: { rx: 7, ry: 5.2 },
+  huge: { rx: 9, ry: 5.8 },
+  bloated: { rx: 11.5, ry: 6.6 },
+  coma: { rx: 11, ry: 5 },
+  workout: { rx: 4, ry: 4.4 },
+}
+const thinBody = (s: StateId) => s === 'skinny' || s === 'asleep' || s === 'workout'
+
+/** Free arms: where each shoulder starts, per body (L = screen-left, toward the can). */
+export const SHOULDER_L: Record<StateId, Pellet> = Object.fromEntries(
+  (Object.keys(BODY) as StateId[]).map(s => [s, { x: Math.round(CX - BODY[s].rx + (thinBody(s) ? 0 : 1)), y: HEAD_POS[s].y + 13 }]),
+) as Record<StateId, Pellet>
+export const SHOULDER_R: Record<StateId, Pellet> = Object.fromEntries(
+  (Object.keys(BODY) as StateId[]).map(s => [s, { x: Math.round(CX + BODY[s].rx - (thinBody(s) ? 0 : 2)), y: HEAD_POS[s].y + 13 }]),
+) as Record<StateId, Pellet>
+
+/**
+ * Arm from a shoulder to a paw (2 px, 1 px on the thin bodies). Over the body
+ * it is dark fur so it reads against the belly; out in the air it is fur
+ * colour and picks up the auto outline. The paw is dark.
+ */
+export function arm(g: Grid, state: StateId, from: Pellet, paw: Pellet, outlined = true, withPaw = true) {
+  const thin = thinBody(state)
   const size = thin ? 1 : 2
-  // an outline along the outer 60% so a paw in front of the belly or face still reads
-  const sx = Math.round(from.x + (paw.x - from.x) * 0.4)
-  const sy = Math.round(from.y + (paw.y - from.y) * 0.4)
-  if (outlined) g.line(sx - 1, sy - 1, paw.x - 1, paw.y - 1, size + 2, 'k')
-  g.line(from.x, from.y, paw.x, paw.y, size, 'g')
+  const n = Math.max(Math.abs(paw.x - from.x), Math.abs(paw.y - from.y), 1)
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(from.x + ((paw.x - from.x) * i) / n)
+    const y = Math.round(from.y + ((paw.y - from.y) * i) / n)
+    for (let dy = 0; dy < size; dy++)
+      for (let dx = 0; dx < size; dx++) {
+        const X = x + dx + g.ox
+        const Y = y + dy + g.oy
+        const under = g.get(X, Y)
+        g.set(x + dx, y + dy, under === '.' || under === 'k' ? (outlined ? 'g' : 'd') : 'd')
+      }
+  }
+  if (!withPaw) return
   if (thin) g.rect(paw.x, paw.y, paw.x + 1, paw.y, 'd')
   else g.rect(paw.x, paw.y, paw.x + 1, paw.y + 1, 'd')
+}
+
+/** A bent arm: shoulder to elbow, elbow to paw (reads as a limb, not a stick, on long reaches). */
+export function bentArm(g: Grid, state: StateId, from: Pellet, elbow: Pellet, paw: Pellet) {
+  arm(g, state, from, elbow, true, false)
+  arm(g, state, elbow, paw)
+}
+
+/** A resting arm down one flank, forearm curling in, paw on the belly. */
+export function restArm(g: Grid, state: StateId, s: -1 | 1, hy = HEAD_POS[state].y, rx = BODY[state].rx) {
+  const thin = thinBody(state)
+  const x = Math.round(CX + s * (rx - (thin ? 0.3 : 1.2))) - (s > 0 && !thin ? 1 : 0)
+  const y0 = hy + 13
+  if (thin) {
+    g.line(x, y0, x, y0 + 4, 1, 'd')
+    return
+  }
+  g.rect(x, y0, x + 1, y0 + 2, 'd')
+  g.rect(s < 0 ? x + 1 : x - 1, y0 + 3, s < 0 ? x + 2 : x, y0 + 3, 'd')
+}
+
+/** Both paws up under the chin, holding (or about to hold) a pellet at the mouth. */
+export function holdPaws(g: Grid, state: StateId, dx = 0, dy = 0) {
+  const M = MOUTH[state]
+  const thin = thinBody(state)
+  const rx = BODY[state].rx
+  for (const s of [-1, 1]) {
+    const from = { x: Math.round(CX + s * (rx - (thin ? 0.5 : 1.5))) - (s > 0 && !thin ? 1 : 0), y: M.y + 3 + dy }
+    const paw = { x: s < 0 ? M.x - 3 + dx : M.x + 2 + dx, y: M.y + dy }
+    if (thin) {
+      g.line(from.x, from.y, paw.x + (s < 0 ? 1 : 0), paw.y, 1, 'd')
+      g.rect(paw.x, paw.y, paw.x + 1, paw.y, 'd')
+    } else {
+      g.line(from.x, from.y, paw.x, paw.y, 2, 'd')
+      g.rect(paw.x, paw.y, paw.x + 1, paw.y + 1, 'd')
+    }
+  }
 }
 
 // ---- bodies ------------------------------------------------------------
@@ -500,8 +532,12 @@ export type BodyOpts = {
   eyes?: Eyes
   mouth?: Mouth
   brow?: Brow
-  /** 'pose' draws the state's own arms; 'none' leaves both free for props; 'right' keeps only the resting right arm. */
-  arms?: 'pose' | 'none' | 'right'
+  /**
+   * 'pose' draws the state's own arms; 'none' leaves both free for props;
+   * 'right' keeps only the resting right arm; 'hold' brings both paws up to
+   * the mouth (eating).
+   */
+  arms?: 'pose' | 'none' | 'right' | 'hold'
   blink?: boolean
   ear?: boolean
   tail?: 0 | 1 | 2
@@ -511,6 +547,8 @@ export type BodyOpts = {
   tilt?: -1 | 0 | 1
   helmet?: boolean
   bandana?: boolean
+  /** Tuck the bandana's triangle away (paws busy at the chest). */
+  tuck?: boolean
   /** Whole-body offset (waddling in the intro). */
   dx?: number
   dy?: number
@@ -518,10 +556,10 @@ export type BodyOpts = {
 
 /** Squash/stretch of the belly after a burst lands: [rx, ry, cy, head drop]. */
 const JIGGLE: Array<[number, number, number, number]> = [
-  [1.3, -0.8, 0.5, 1],
-  [-0.8, 0.6, -0.4, 0],
-  [0.7, -0.4, 0.2, 0],
-  [0.25, -0.1, 0, 0],
+  [1.4, -0.9, 0.5, 1],
+  [-0.9, 0.5, -0.3, 0],
+  [0.8, -0.4, 0.2, 0],
+  [0.3, -0.1, 0, 0],
 ]
 export const JIGGLE_FRAMES = JIGGLE.length
 function jig(o: BodyOpts): [number, number, number, number] {
@@ -533,329 +571,283 @@ function face(o: BodyOpts, eyes: Eyes, mouth: Mouth, brow?: Brow): [Eyes, Mouth,
   return [o.blink && e !== 'closed' ? 'closed' : e, o.mouth ?? mouth, o.blink ? undefined : (o.brow ?? brow)]
 }
 
-function drawHead(g: Grid, state: StateId, o: BodyOpts, eyes: Eyes, mouth: Mouth, brow: Brow | undefined, extraDy = 0) {
-  const p = HEAD_POS[state]
-  head(g, p.x + (o.headDx ?? 0), p.y + (o.headDy ?? 0) + extraDy, eyes, mouth, { brow, ear: o.ear, tilt: o.tilt, helmet: o.helmet })
+/** The idle look of each awake body, per pose. */
+function idleFace(state: StateId, f: number): [Eyes, Mouth, Brow | undefined] {
+  switch (state) {
+    case 'skinny':
+      return f === 1 ? ['wide', 'tongue', 'hungry'] : f === 2 ? ['left', 'flat', 'hungry'] : ['wide', 'flat', 'hungry']
+    case 'snacking':
+      return f === 0 ? ['left', 'grin', undefined] : f === 1 ? ['happy', 'open', undefined] : ['happy', f === 2 ? 'chew0' : 'chew1', undefined]
+    case 'round':
+      return ['happy', f === 1 ? 'open' : f === 0 ? 'chew0' : 'chew1', undefined]
+    case 'huge':
+      return ['lidded', f % 4 < 2 ? 'chew0' : 'chew1', undefined]
+    case 'bloated':
+      return ['lidded', f >= 2 ? 'burp' : 'flat', f >= 2 ? undefined : 'bored']
+    default:
+      return ['normal', 'grin', undefined]
+  }
 }
 
-// Skinny: HUNCHED. A bony ribcage arching higher than the head, the head
-// pushed forward and low toward the can, ribs on the flank, a thin waist, a
-// bent haunch, and long arms dangling to the floor with claws. Hungry.
-const TAIL_HOOK = ['..mm', '.mmd', '.dh.', '.hd.', 'dh..', 'hd..', 'd...']
-const TAIL_DROOP = ['......dh', '...ddhh.', 'mmdh....']
-function skinnyHunched(g: Grid, state: StateId, o: BodyOpts) {
-  const [, , , jdrop] = jig(o)
-  const bob = o.jiggle === undefined ? 0 : [1, 0, 0, 0][o.jiggle % 4]!
-  g.ox = o.dx ?? 0
-  g.oy = o.dy ?? 0
-  const pose = o.pose ?? 0
-  const sleepy = state === 'asleep'
-  if (sleepy) tail(g, 37, 10, TAIL_DROOP, o.tail ?? 0)
-  else tail(g, 39, 2, TAIL_HOOK, o.tail ?? (pose === 1 ? 2 : 0))
-  // hind leg: bony haunch, knee forward, shin back, big flat foot
-  g.ellipse(36, 11 + bob, 2.6, 2.4, 'g')
-  g.line(35, 13, 33, 16, 1, 'g')
-  g.line(33, 16, 35, 18, 1, 'g')
-  g.rect(34, 19, 37, 19, 'd')
-  // far hind leg peeking
-  g.line(38, 13, 39, 18, 1, 'd')
-  g.rect(38, 19, 40, 19, 'd')
-  // ribcage: arched high behind the head, belly tucked up to a thin waist
-  g.ellipse(31, 7.5 + bob, 6, 4.8, 'g')
-  g.ellipse(31, 6.3 + bob, 4.6, 2.8, 'd')
-  g.ellipse(31, 5.9 + bob, 4.6, 2.8, 'g')
-  for (const x of [29, 31, 33]) g.line(x, 8 + bob, x, 11 + bob, 1, 'd')
-  for (const x of [30, 32]) g.line(x, 8 + bob, x, 10 + bob, 1, 'h')
-  g.line(27, 12 + bob, 34, 12 + bob, 1, 'g')
-  // front legs under the chest
-  g.line(27, 12, 27, 18, 1, 'g')
-  g.rect(26, 19, 28, 19, 'd')
-  // neck: forward and down into the head
-  g.line(27, 5 + bob, 23, 10, 2, 'g')
-  if (o.arms !== 'none') {
-    // far arm, mostly hidden
-    g.line(24, 15, 24, 18, 1, 'd')
-    g.rect(23, 19, 24, 19, 'd')
-  }
-  if (o.arms === 'pose' || o.arms === undefined) {
-    // near arm: long, dangling past the knees, claws on the floor
-    g.line(19, 15, 18, 18, 1, 'g')
-    g.rect(17, 19, 19, 19, 'd')
-  }
-  const [eyes, mouth, brow] = sleepy
-    ? face(o, 'closed', 'chew1')
-    : face(o, 'wide', pose === 1 ? 'tongue' : 'grin', 'hungry')
-  drawHead(g, state, o, eyes, mouth, brow, jdrop + bob)
-  if (o.bandana !== false) bandana(g, 21 + (o.headDx ?? 0), 15 + (o.headDy ?? 0) + jdrop + bob, 7, 1)
-  g.ox = 0
-  g.oy = 0
+/** The bit of floor shadow under a jump. */
+function shadow(g: Grid, cx: number, w: number) {
+  g.rect(Math.round(cx - w), 19, Math.round(cx + w), 19, 'T')
 }
 
-// Workout keeps the old upright skinny: jumping jacks need a straight back.
-const SKINNY_TORSO = [
-  '.ggggggg.',
-  'gg.hhh.gg',
-  '.g.ddd.g.',
-  '.g.hhh.g.',
-  '.g.ddd.g.',
-  '.g..g..g.',
-  '.d.....d.',
-]
-function skinnyUpright(g: Grid, up: boolean, o: BodyOpts) {
-  const lift = up ? 1 : 0
-  if (up) tail(g, 30, 12, TAIL_THIN_UP)
-  else tail(g, 30, 14, TAIL_THIN)
-  if (up) {
-    g.line(26, 17, 22, 18, 1, 'g')
-    g.line(28, 17, 32, 18, 1, 'g')
-    g.rect(19, 18, 21, 18, 'd')
-    g.rect(33, 18, 35, 18, 'd')
-    // shadow on the floor while airborne
-    g.rect(21, 19, 33, 19, 'T')
-  } else {
-    g.set(26, 17, 'g'), g.set(25, 18, 'g'), g.set(24, 18, 'g'), g.set(24, 19, 'd'), g.set(23, 19, 'd'), g.set(22, 19, 'd')
-    g.set(28, 17, 'g'), g.set(29, 18, 'g'), g.set(30, 18, 'g'), g.set(30, 19, 'd'), g.set(31, 19, 'd'), g.set(32, 19, 'd')
-  }
-  void lift
-  if (up) {
-    g.stamp(23, 11, SKINNY_TORSO.slice(0, 6).map(r => '..' + r.slice(2, 7) + '..'))
-    g.line(23, 12, 19, 5, 1, 'g')
-    g.line(31, 12, 35, 5, 1, 'g')
-    g.rect(18, 3, 19, 4, 'd')
-    g.rect(35, 3, 36, 4, 'd')
-  } else g.stamp(23, 11, SKINNY_TORSO)
-  const [eyes, mouth, brow] = face(o, up ? 'happy' : 'normal', 'grin')
-  head(g, HEAD_X, HEAD_POS.workout.y, eyes, mouth, { brow })
-  bandana(g, 27, HEAD_POS.workout.y + 10, 7, 1)
-}
-
-function snacking(g: Grid, o: BodyOpts) {
+/**
+ * Every sitting body: tail, round belly, feet, arms, bandana, head. The body
+ * is an ellipse sitting on the floor whose width grows with the state.
+ */
+function sitter(g: Grid, state: StateId, o: BodyOpts) {
   const f = o.pose ?? 0
   const [jrx, jry, jcy, jdrop] = jig(o)
+  const spec = BODY[state]
+  const thin = thinBody(state)
+  const breath = state === 'bloated' && f === 1 ? 0.7 : 0
+  const rx = spec.rx + jrx + breath
+  const ry = spec.ry + jry + breath * 0.3
+  const cx = CX
+  const cy = 19.6 - ry + jcy
+  const hp = HEAD_POS[state]
+  const hy = hp.y + (o.headDy ?? 0) + jdrop
+  const hx = hp.x + (o.headDx ?? 0)
   g.ox = o.dx ?? 0
   g.oy = o.dy ?? 0
-  tail(g, 33, 8, TAIL_MID, o.tail ?? 0)
-  g.ellipse(27, 14.6 + jcy, 6.6 + jrx, 5 + jry, 'd')
-  g.ellipse(26.6, 14 + jcy, 5.8 + jrx, 4.4 + jry, 'g')
-  g.ellipse(27, 15.3 + jcy, 3.6 + jrx * 0.7, 3.1 + jry * 0.7, 'h')
-  g.set(27, 16, 'd')
-  foot(g, 20, 16, false)
-  foot(g, 31, 16, false)
-  if (o.arms !== 'none') {
-    // resting arm on the belly (screen right)
-    g.line(32, 11, 32, 14, 1, 'g')
-    g.rect(31, 15, 32, 15, 'd')
-  }
-  if (o.arms === 'pose' || o.arms === undefined) {
-    if (f === 0) {
-      g.line(22, 11, 15, 15, 2, 'g')
-      g.rect(13, 15, 14, 16, 'd')
-    } else if (f === 1) {
-      g.line(21, 12, 23, 11, 2, 'g')
-    } else {
-      g.line(22, 11, 22, 14, 1, 'g')
-      g.rect(22, 15, 23, 15, 'd')
+
+  // tail behind the right hip: the tip clears the head
+  const tx = Math.round(cx + spec.rx) - 2
+  tail(g, thin ? tx + 1 : tx, thin ? 11 : state === 'snacking' ? 10 : 9, TAIL_UP, o.tail ?? 0)
+
+  // belly
+  g.ellipse(cx, cy, rx, ry, 'g')
+  g.ellipse(cx, cy + ry * 0.3, rx * 0.66, ry * 0.72, 'h')
+  if (!thin) g.set(Math.round(cx) - 1, Math.round(cy + ry * 0.35), 'd') // belly button
+  if (state === 'huge') belt(g, cx, cy, rx, ry)
+  if (state === 'bloated') {
+    // the belt gave up: frayed ends hang off each hip, the buckle is on the floor
+    for (const s of [-1, 1]) {
+      const x = Math.round(cx + s * (rx - 0.5))
+      g.set(x, 15, 'n'), g.set(x + s, 15, 'n'), g.set(x + s, 16, 'n')
     }
+    g.stamp(Math.round(cx + rx) + 1, 18, ['YY', 'Yn'])
   }
-  const [eyes, mouth, brow] = face(o, f === 1 ? 'wide' : f === 0 ? 'normal' : 'happy', f === 0 ? 'grin' : f === 1 ? 'open' : f === 2 ? 'chew0' : 'chew1')
-  drawHead(g, 'snacking', o, eyes, mouth, brow, jdrop)
-  if (o.bandana !== false) bandana(g, 27 + (o.headDx ?? 0), 11 + (o.headDy ?? 0) + jdrop, 9, 2)
-  if (f === 1 && (o.arms === 'pose' || o.arms === undefined)) {
-    g.rect(22, 10, 23, 11, 'd')
-    pellet(g, 23, 8)
+
+  // feet
+  if (thin) {
+    // stick legs to small feet
+    for (const s of [-1, 1]) {
+      const x = Math.round(cx + s * 1.5 - 0.5)
+      g.set(x, 18, 'g')
+      g.rect(x + (s < 0 ? -1 : 0), 19, x + (s < 0 ? 0 : 1), 19, 'd')
+    }
+  } else {
+    const spread = rx * 0.62
+    foot(g, Math.round(cx - spread) - 2, 18)
+    foot(g, Math.round(cx + spread) - 1, 18)
   }
+
+  // resting arms: down the sides, paws on the belly
+  const arms = o.arms ?? 'pose'
+  const restL = arms === 'pose' && !(state === 'snacking' && f <= 1) && !(state === 'round')
+  const restR = (arms === 'pose' || arms === 'right') && !(state === 'snacking' && f === 1) && !(state === 'round' && arms === 'pose')
+  if (restL) restArm(g, state, -1, hy, rx)
+  if (restR) restArm(g, state, 1, hy, rx)
+
+  // neckerchief, then the head over it; with paws up at the chin the knot's
+  // triangle is tucked away so paws and pellet sit on the light belly, not on red
+  const holding = arms === 'hold' || (arms === 'pose' && (state === 'round' || (state === 'snacking' && f === 1)))
+  if (o.bandana !== false) bandana(g, hx + 8, hy + 12, thin ? 10 : 12, holding || o.tuck ? 1 : 3)
+  const [eyes, mouth, brow] = face(o, ...idleFace(state, f))
+  head(g, hx, hy, eyes, mouth, { brow, ear: o.ear, tilt: o.tilt, helmet: o.helmet })
+
+  // arms that come up in front of the chest
+  if (holding) holdPaws(g, state, 0, jdrop)
+  if (arms === 'pose' && state === 'snacking' && f === 0) {
+    // grabbing a pellet off the pile
+    arm(g, state, SHOULDER_L[state], { x: 19, y: 16 })
+  }
+  if (arms === 'pose' && state === 'round' && f !== 2 && f !== 1) pellet(g, MOUTH.round.x - 1, MOUTH.round.y - 1 + jdrop, 'w')
+  if (arms === 'pose' && state === 'round' && f === 1) g.set(MOUTH.round.x, MOUTH.round.y + jdrop, 'o')
+  if (arms === 'pose' && state === 'snacking' && f === 1) pellet(g, MOUTH.snacking.x - 1, MOUTH.snacking.y - 1, 'w')
   g.ox = 0
   g.oy = 0
 }
 
-function round(g: Grid, o: BodyOpts) {
-  const f = o.pose ?? 0
-  const [jrx, jry, jcy, jdrop] = jig(o)
-  g.ox = o.dx ?? 0
-  g.oy = o.dy ?? 0
-  tail(g, 34, 7, TAIL_BIG, o.tail ?? 0)
-  g.ellipse(27, 14.2 + jcy, 9.2 + jrx, 5.8 + jry, 'd')
-  g.ellipse(26.6, 13.5 + jcy, 8.4 + jrx, 5.2 + jry, 'g')
-  g.ellipse(27, 15 + jcy, 5.8 + jrx * 0.8, 3.9 + jry * 0.8, 'h')
-  g.set(27, 16, 'd')
-  g.set(21, 12, 'd'), g.set(33, 13, 'd'), g.set(23, 18, 'd'), g.set(31, 18, 'd')
-  foot(g, 17 - Math.round(jrx * 0.6), 15)
-  foot(g, 33 + Math.round(jrx * 0.6), 15)
-  const [eyes, mouth, brow] = face(o, 'happy', f === 0 ? 'chew0' : f === 1 ? 'open' : 'chew1')
-  drawHead(g, 'round', o, eyes, mouth, brow, jdrop)
-  if (o.bandana !== false) bandana(g, 27 + (o.headDx ?? 0), 11 + (o.headDy ?? 0) + jdrop, 11, 2)
-  if (o.arms === 'pose' || o.arms === undefined) {
-    // paws holding the pellet up to the mouth
-    g.line(20, 13, 23, 12, 2, 'g')
-    g.rect(23, 11, 24, 12, 'd')
-    g.line(33, 13, 30, 12, 2, 'g')
-    g.rect(30, 11, 31, 12, 'd')
-    if (f === 0) pellet(g, 26, 10, 'w')
-    else if (f === 1) {
-      g.set(27, 11, 'o')
-      g.set(26, 12, 'o')
-      g.set(27, 12, 'y')
-      g.set(28, 12, 'o')
-    } else g.set(27, 12, 'o')
-  } else if (o.arms === 'right') {
-    g.line(33, 13, 33, 15, 2, 'g')
-    g.rect(32, 16, 33, 16, 'd')
-  }
-  g.ox = 0
-  g.oy = 0
-}
-
-function huge(g: Grid, o: BodyOpts) {
-  const f = o.pose ?? 0
-  const [jrx, jry, jcy, jdrop] = jig(o)
-  g.ox = o.dx ?? 0
-  g.oy = o.dy ?? 0
-  tail(g, 36, 5, TAIL_BIG, o.tail ?? 0)
-  const rx = 12 + jrx
-  const ry = 6.2 + jry
-  const cy = 13.8 + jcy
-  g.ellipse(27, cy, rx, ry, 'd')
-  g.ellipse(26.6, cy - 0.7, rx - 0.7, ry - 0.6, 'g')
-  g.ellipse(27, cy + 0.6, 8.4 + jrx, 4.4 + jry, 'h')
-  // straining belt
-  for (let x = 14; x <= 40; x++)
-    for (const y of [15, 16]) {
-      const dx = (x - 27) / rx
+/** The straining belt across a huge belly: brown band, gold buckle, stress creases. */
+function belt(g: Grid, cx: number, cy: number, rx: number, ry: number) {
+  for (const y of [16, 17])
+    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+      const dx = (x - cx) / rx
       const dy = (y - cy) / ry
       if (dx * dx + dy * dy <= 1) g.set(x, y, 'n')
     }
-  g.rect(25, 15, 29, 16, 'Y')
-  g.rect(26, 15, 28, 15, 'n')
-  g.set(27, 16, 'n')
-  for (const x of [19, 35]) g.set(x, 15, 'k')
-  for (const x of [21, 24, 30, 33]) g.set(x, 13, 'd')
-  for (const x of [22, 32]) g.set(x, 18, 'd')
-  foot(g, 14 - Math.round(jrx * 0.5), 16)
-  foot(g, 36 + Math.round(jrx * 0.5), 16)
-  if (o.arms !== 'none') {
-    g.ellipse(37.5, 12, 1.6, 2.6, 'g')
-    g.rect(37, 14, 38, 14, 'd')
-  }
-  if (o.arms === 'pose' || o.arms === undefined) {
-    g.ellipse(16.5, 12, 1.6, 2.6, 'g')
-    g.rect(16, 14, 17, 14, 'd')
-  }
-  const [eyes, mouth, brow] = face(o, 'lidded', 'chew0')
-  drawHead(g, 'huge', o, eyes, mouth, brow, jdrop)
-  if (o.bandana !== false) bandana(g, 27 + (o.headDx ?? 0), 11 + (o.headDy ?? 0) + jdrop, 11, 1)
-  void f
-  g.ox = 0
-  g.oy = 0
+  g.rect(Math.round(cx) - 2, 15, Math.round(cx) + 1, 18, 'Y')
+  g.rect(Math.round(cx) - 1, 16, Math.round(cx), 17, 'n')
+  // belly bulging over the belt
+  for (const s of [-1, 1]) g.set(Math.round(cx + s * rx * 0.55) - (s < 0 ? 1 : 0), 15, 'd')
 }
 
-/** The huge sweat drip: forms at the temple, rolls down the cheek, drops, splats on the shoulder. */
+/** The huge sweat drip: forms at the left temple, rolls down, drops, splats on the shoulder. */
 export const DRIP_STEPS = 8
 export function drip(g: Grid, step: number) {
   const s = ((step % DRIP_STEPS) + DRIP_STEPS) % DRIP_STEPS
-  if (s === 0) g.set(34, 3, 'a')
-  else if (s === 1) g.set(34, 3, 's'), g.set(34, 4, 'a')
-  else if (s === 2) g.set(35, 4, 's'), g.set(35, 5, 'a')
-  else if (s === 3) g.set(35, 6, 's'), g.set(35, 7, 'a')
-  else if (s === 4) g.set(36, 8, 's'), g.set(36, 9, 'a')
-  else if (s === 5) g.set(35, 9, 's'), g.set(37, 9, 's'), g.set(36, 8, 'a')
+  const x = HEAD_X - 1
+  if (s === 0) g.set(x, 3, 'a')
+  else if (s === 1) g.set(x, 3, 's'), g.set(x, 4, 'a')
+  else if (s === 2) g.set(x, 5, 's'), g.set(x, 6, 'a')
+  else if (s === 3) g.set(x - 1, 7, 's'), g.set(x - 1, 8, 'a')
+  else if (s === 4) g.set(x - 1, 10, 's'), g.set(x - 1, 11, 'a')
+  else if (s === 5) g.set(x - 2, 12, 's'), g.set(x, 12, 's'), g.set(x - 1, 11, 'a')
   // 6, 7: dry beat before the next bead
 }
 
-function bloated(g: Grid, o: BodyOpts) {
-  const f = o.pose ?? 0
-  const [jrx, jry, jcy, jdrop] = jig(o)
-  g.ox = o.dx ?? 0
-  g.oy = o.dy ?? 0
-  tail(g, 37, 3, TAIL_BIG.slice(0, 7), o.tail ?? 0)
-  const breath = (f === 1 ? 0.7 : 0) + jrx
-  const by = (f === 1 ? 0.35 : 0) + jry
-  g.ellipse(27, 13.4 + jcy, 15 + breath, 6.6 + by, 'd')
-  g.ellipse(26.6, 12.8 + jcy, 14.2 + breath, 6 + by, 'g')
-  g.ellipse(27, 14 + jcy, 11 + breath, 5 + by, 'h')
-  g.set(27, 15, 'd'), g.set(28, 15, 'd')
-  for (const [x, y] of [[18, 12], [19, 16], [36, 12], [35, 16], [23, 18], [31, 18]] as Array<[number, number]>) g.set(x, y, 'd')
-  // popped belt: scraps on the sides, buckle on the floor
-  g.rect(12, 15, 14, 15, 'n')
-  g.rect(40, 15, 42, 15, 'n')
-  g.rect(36, 18, 37, 19, 'Y')
-  foot(g, 11 - Math.round(jrx * 0.5), 16)
-  foot(g, 39 + Math.round(jrx * 0.5), 16)
-  if (o.arms !== 'none') g.ellipse(40, 11.5, 1.6, 2.4, 'g')
-  if (o.arms === 'pose' || o.arms === undefined) g.ellipse(14, 11.5, 1.6, 2.4, 'g')
-  const [eyes, mouth, brow] = face(o, 'lidded', f >= 2 ? 'burp' : 'chew0')
-  drawHead(g, 'bloated', o, eyes, mouth, brow, jdrop)
-  if (o.bandana !== false) bandana(g, 27 + (o.headDx ?? 0), 12 + (o.headDy ?? 0) + jdrop, 9, 1)
-  g.ox = 0
-  g.oy = 0
-}
-
+const PUFF_S = ['.cc.', 'cccc', '.cc.']
+const PUFF_L = ['..ccc.', '.ccccc', 'cccccc', '.cccc.']
 export function burpPuff(g: Grid, f: number) {
   if (f === 2) {
-    g.ellipse(19, 8, 1.3, 1.1, 'c')
-    g.ellipse(16, 6, 0.9, 0.9, 'c')
+    g.stamp(16, 8, PUFF_S)
+    g.set(14, 6, 'c')
   } else if (f === 3) {
-    g.ellipse(18, 7, 2.2, 1.8, 'c')
-    g.ellipse(13, 4, 2, 1.7, 'c')
-    g.ellipse(9, 2.5, 1.3, 1.2, 'c')
+    g.stamp(14, 7, PUFF_L)
+    g.stamp(10, 3, PUFF_S)
+    g.set(8, 1, 'c')
   }
 }
 
+/** Asleep (no data yet): skinny, slumped, head lolling, eyes shut. */
+function asleep(g: Grid, o: BodyOpts) {
+  sitter(g, 'asleep', { ...o, eyes: 'closed', mouth: o.mouth ?? 'flat', brow: undefined, tilt: 1, blink: false })
+}
+
+/**
+ * Food coma: flopped beside the drained can, legs splayed soles-out, arms
+ * limp on the floor, head slumped and tilted, x-eyes, tongue out, belly breathing.
+ */
 function coma(g: Grid, o: BodyOpts) {
   const f = o.pose ?? 0
-  tail(g, 4, 16, TAIL_FLAT)
-  const b = f % 2 ? 0.6 : 0
-  g.ellipse(21, 14.2, 12.8, 5.4 + b, 'd')
-  g.ellipse(21, 13.6, 12.1, 4.8 + b, 'g')
-  g.ellipse(21, 13.8, 9.4, 3.6 + b, 'h')
-  g.set(21, 13, 'k'), g.set(20, 12, 'k'), g.set(22, 12, 'k'), g.set(20, 14, 'k'), g.set(22, 14, 'k')
-  // belly-up legs, soles to the sky (toes twitch on the breath)
-  for (const [x, y] of [[10, 3 + (f % 2)], [15, 2]] as Array<[number, number]>) {
-    g.rect(x + 1, y + 3, x + 2, 9, 'g')
-    foot(g, x, y, false)
+  const b = f % 2 ? 0.5 : 0
+  const cx = CX
+  const hp = HEAD_POS.coma
+  tail(g, cx + 8, 16, TAIL_FLAT)
+  g.ellipse(cx, 19.8 - BODY.coma.ry - b * 0.5, BODY.coma.rx + b, BODY.coma.ry + b * 0.5, 'g')
+  g.ellipse(cx, 17.4, 7 + b, 3.6, 'h')
+  g.set(Math.round(cx) - 1, 17, 'd')
+  // limp arms flopped out on the floor
+  for (const s of [-1, 1]) {
+    const x0 = Math.round(cx + s * (BODY.coma.rx - 1))
+    g.line(x0, 15, x0 + s * 3, 18, 2, 'g')
+    g.rect(x0 + s * 3 + (s < 0 ? -1 : 0), 18, x0 + s * 3 + (s < 0 ? 0 : 1), 19, 'd')
   }
-  g.rect(26, 7, 27, 10, 'g')
-  g.rect(26, 6, 27, 6, 'd')
-  // bandana bunched at the neck, head lolling back, tongue out
-  g.rect(29, 11, 30, 16, 'r')
-  g.rect(29, 13, 29, 15, 'R')
-  head(g, HEAD_POS.coma.x, HEAD_POS.coma.y, 'closed', 'tongue', { ear: o.ear })
-  const Z: Array<[number, number]> = [[30, 1], [35, 1], [40, 1]]
-  Z.slice(0, f === 3 ? 3 : f + 1).forEach(([x, y], i) => zed(g, x, y + (i === 1 ? 0 : 1), i !== 2))
+  // splayed feet, soles out
+  foot(g, Math.round(cx) - 7, 18)
+  foot(g, Math.round(cx) + 4, 18)
+  bandana(g, hp.x + 8, hp.y + 12, 12, 2)
+  head(g, hp.x, hp.y, 'closed', 'tongue', { ear: o.ear, tilt: 1 })
+}
+
+/** Workout: skinny jumping jacks. Pose 1 = arms up, legs out, airborne. */
+function workout(g: Grid, o: BodyOpts) {
+  const up = (o.pose ?? 0) === 1
+  const cx = CX
+  const lift = up ? 1 : 0
+  const hp = HEAD_POS.workout
+  const hy = hp.y - lift
+  tail(g, Math.round(cx + 4) - 1, 11 - lift, TAIL_UP, up ? 2 : 0)
+  g.ellipse(cx, 15.2 - lift, 4, 4.2, 'g')
+  g.ellipse(cx, 16.4 - lift, 2.6, 3, 'h')
+  if (up) {
+    // legs kicked out, feet off the floor, a shadow underneath
+    g.line(cx - 2, 18 - lift, cx - 5, 18, 1, 'g')
+    g.line(cx + 2, 18 - lift, cx + 5, 18, 1, 'g')
+    g.rect(Math.round(cx - 7), 18, Math.round(cx - 6), 18, 'd')
+    g.rect(Math.round(cx + 5), 18, Math.round(cx + 6), 18, 'd')
+    shadow(g, cx, 6)
+    // arms straight up beside the ears (behind the head)
+    g.line(cx - 4, 13 - lift, HEAD_X - 2, 2, 1, 'g')
+    g.line(cx + 4, 13 - lift, HEAD_X + 17, 2, 1, 'g')
+    g.rect(HEAD_X - 3, 1, HEAD_X - 2, 1, 'd')
+    g.rect(HEAD_X + 17, 1, HEAD_X + 18, 1, 'd')
+  } else {
+    for (const s of [-1, 1]) {
+      const x = Math.round(cx + s * 1.5 - 0.5)
+      g.set(x, 18, 'g')
+      g.rect(x + (s < 0 ? -1 : 0), 19, x + (s < 0 ? 0 : 1), 19, 'd')
+    }
+    // arms down at the sides
+    for (const s of [-1, 1]) {
+      const x = Math.round(cx + s * 4.3)
+      g.line(x, 13, x + s, 17, 1, 'g')
+      g.set(x + s, 18, 'd')
+    }
+  }
+  bandana(g, hp.x + 8, hy + 12, 10, 3)
+  const [eyes, mouth, brow] = face(o, up ? 'happy' : 'normal', up ? 'open' : 'grin', up ? undefined : 'raised')
+  head(g, hp.x, hy, eyes, mouth, { brow })
 }
 
 /** Draw a body for any state. Workout: pose 1 = arms up. */
 export function drawBody(g: Grid, state: StateId, o: BodyOpts = {}) {
   switch (state) {
     case 'asleep':
-    case 'skinny':
-      return skinnyHunched(g, state, o)
-    case 'snacking':
-      return snacking(g, o)
-    case 'round':
-      return round(g, o)
-    case 'huge':
-      return huge(g, o)
-    case 'bloated':
-      return bloated(g, o)
+      return asleep(g, o)
     case 'coma':
       return coma(g, o)
     case 'workout':
-      return skinnyUpright(g, (o.pose ?? 0) === 1, o)
+      return workout(g, o)
+    default:
+      return sitter(g, state, o)
   }
 }
 
 /** Wobble ticks beside the belly on the squash beats of a jiggle. */
 export function jiggleTicks(g: Grid, state: StateId, k: number) {
   if (k !== 0 && k !== 2) return
-  const half: Record<StateId, number> = { asleep: 6, skinny: 6, snacking: 8, round: 11, huge: 14, bloated: 17, coma: 0, workout: 0 }
-  const r = half[state]
-  if (!r) return
-  const cx = state === 'skinny' || state === 'asleep' ? 31 : 27
-  const y = state === 'skinny' || state === 'asleep' ? 10 : 13
-  // skinny's head pokes out in front of the ribcage, so its left tick would land on the face
-  for (const s of state === 'skinny' || state === 'asleep' ? [1] : [-1, 1]) {
-    const x = cx + s * (r + 1)
-    g.set(x, y, 'c'), g.set(x, y + 2, 'c')
-    if (k === 0) g.set(x + s, y + 1, 'c')
+  if (state === 'coma' || state === 'workout') return
+  const r = BODY[state].rx + (k === 0 ? 1.4 : 0.8)
+  for (const s of [-1, 1]) {
+    const x = Math.round(CX + s * (r + 1.5))
+    g.set(x, 15, 'c'), g.set(x, 17, 'c')
+    if (k === 0) g.set(x + s, 16, 'c')
   }
+}
+
+/**
+ * Pellets on their way to the mouth. Whatever path the caller computed (a
+ * stream from the can, a burst from above), each pellet is redrawn on Tonk's
+ * own path: a hop out of the can, then a level slide in at mouth height into
+ * his paws. Progress is how close the pellet already is to the mouth, so the
+ * timing is the caller's and nothing ever crosses the face above the nose.
+ */
+export function incoming(g: Grid, state: StateId, from: Pellet, pellets: readonly Pellet[]) {
+  const B = MOUTH[state]
+  const A = { x: from.x + 1, y: from.y + 1 }
+  const K = { x: HEAD_POS[state].x - 3, y: B.y }
+  const hop = Math.hypot(K.x - A.x, K.y - A.y)
+  const slide = B.x - K.x
+  const D = Math.max(hop + slide, Math.hypot(B.x - A.x, B.y - A.y)) * 0.9
+  for (const p of pellets) {
+    const d = Math.hypot(p.x + 1 - B.x, p.y + 1 - B.y)
+    const t = Math.max(0, Math.min(1, 1 - d / D))
+    const s = t * (hop + slide)
+    let x: number
+    let y: number
+    if (s < hop) {
+      const u = s / hop
+      x = A.x + (K.x - A.x) * u
+      y = A.y + (K.y - A.y) * u - 6 * Math.sin(Math.PI * u)
+    } else {
+      x = K.x + (s - hop)
+      y = B.y
+    }
+    pellet(g, Math.round(x) - 1, Math.round(y) - 1, 'w')
+  }
+}
+
+/** Pellets that land while he sleeps: they rain down on the can side and bounce onto the pile. */
+export function rainOnPile(g: Grid, pellets: readonly Pellet[]) {
+  pellets.forEach((p, i) => {
+    const x = 12 + ((i * 5) % 8)
+    const y = Math.max(-2, Math.min(16, p.y))
+    pellet(g, x, y, 'w')
+  })
 }
