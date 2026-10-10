@@ -1,0 +1,9 @@
+{
+  "name": "tonk",
+  "version": "0.1.0",
+  "description": "A pixel-art punk raccoon that eats your Claude weekly usage and gets fatter as the limit fills.",
+  "license": "MIT",
+  "author": {
+    "name": "Treynor Tetik"
+  }
+}
